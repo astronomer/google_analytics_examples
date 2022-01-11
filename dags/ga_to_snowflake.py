@@ -22,7 +22,7 @@ table_schema_path = os.path.join(
 template_searchpath = os.path.join(base_path, "include", "templates")
 
 # Update the variables below with your project info
-GCS_CONN_ID = "google_default"
+GCS_CONN_ID = "google_cloud_default"
 GCS_BUCKET = "demo"
 SNOWFLAKE_CONN_ID = "snowflake_default"
 LOADING_DB = "loading_db"
@@ -48,8 +48,13 @@ with DAG(
     max_active_runs=1,
     template_searchpath=template_searchpath,
 ) as dag:
+    """
+    The google_analytics_to_snowflake DAG transfers data from Google Analytics
+    (GA) to Google Cloud Storage (GCS), and then loads the data to Snowflake
+    staging tables. From staging, data is loaded to Snowflake transform tables.
+    """
     with open(
-        f"{base_path}/{table_schema_path}/{transform_schema}.json",
+        f"{table_schema_path}/{transform_schema}.json",
         "r",
     ) as f:
         table_schema = json.load(f)
