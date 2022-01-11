@@ -2,6 +2,8 @@
 
 This repository contains example code for DAGs interacting with Google Analytics, and the hooks and operators needed to power the DAGs.
 
+- The custom `GAToGCSOperator` is used to load data from Google Analytics to GCS, and the code can be found in the `include/operators/` directory. The corresponding hook can be found under `include/hooks/`.
+
 ### Requirements
 The Astronomer CLI and Docker installed locally are needed to run all DAGs in this repo. Python requirements are found in the `requirements.txt` file.
 
