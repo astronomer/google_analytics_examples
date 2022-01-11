@@ -46,6 +46,7 @@ with DAG(
     schedule_interval="0 0 * * *",
     start_date=datetime(2022, 1, 1),
     max_active_runs=1,
+    catchup=False,
     template_searchpath=template_searchpath,
 ) as dag:
     """
@@ -113,9 +114,7 @@ with DAG(
                 gcs_bucket_name=GCS_BUCKET,
             )
 
-            extract_finish = DummyOperator(
-                task_id=f"{table}_finish", trigger_rule=TriggerRule.ALL_SUCCESS
-            )
+            extract_finish = DummyOperator(task_id=f"{table}_finish")
             with TaskGroup(group_id="loading_from_gcs_to_snowflake"):
                 loading_db_params = {
                     "loading_schema": loading_schema,
