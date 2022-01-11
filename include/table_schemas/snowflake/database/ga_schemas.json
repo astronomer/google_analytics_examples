@@ -1,0 +1,82 @@
+{
+    "title": "ga_user_data",
+    "definitions": {
+      "ga_user_session_summary": {
+            "properties": {
+                "COUNTRY": {"type": "varchar(64)", "description": "source_order=1"},
+                "CITY": {"type": "varchar(64)", "description": "source_order=2"},
+                "DATE": {"type": "date", "description": "source_order=3"},
+                "NEWUSERS": {"type": "int", "description": "source_order=4"},
+                "ACTIVEUSERS": {"type": "int", "description": "source_order=5"},
+                "ACTIVE1DAYUSERS": {"type": "int", "description": "source_order=6"},
+                "ACTIVE7DAYUSERS": {"type": "int", "description": "source_order=7"},
+                "ACTIVE28DAYUSERS": {"type": "int", "description": "source_order=8"},
+                "SESSIONS": {"type": "int", "description": "source_order=9"},
+                "SESSIONSPERUSER": {"type": "float", "description": "source_order=10"},
+                "EVENTCOUNT": {"type": "int", "description": "source_order=11"},
+                "EVENTCOUNTPERUSER": {"type": "float", "description": "source_order=12"},
+                "insert_timestamp": {"type": "timestamp_ntz", "description": null},
+                "hash_diff": {
+                    "type": "varchar(128)",
+                    "columns":["COUNTRY","CITY","DATE"],
+                    "algorithm":"MD5",
+                    "description": null
+                }
+            },
+            "dimensions": ["country",
+              "city",
+              "date"
+              ],
+            "metrics":["newUsers",
+              "activeUsers",
+              "active1DayUsers",
+              "active7DayUsers",
+              "active28DayUsers",
+              "sessions",
+              "sessionsPerUser",
+              "eventCount",
+              "eventCountPerUser"],
+             "cluster_keys": {
+                "columns":["COUNTRY","CITY","DATE"],
+                "description": null
+            }
+        },
+      "ga_user_browser_summary": {
+            "properties": {
+                "COUNTRY": {"type": "varchar(64)", "description": "source_order=1"},
+                "CITY": {"type": "varchar(64)", "description": "source_order=2"},
+                "DATE": {"type": "date", "description": "source_order=3"},
+                "BROWSER": {"type": "varchar(64)", "description": "source_order=4"},
+                "LANGUAGE": {"type": "varchar(64)", "description": "source_order=5"},
+                "NEWUSERS": {"type": "int", "description": "source_order=6"},
+                "ACTIVEUSERS": {"type": "int", "description": "source_order=7"},
+                "SESSIONS": {"type": "int", "description": "source_order=8"},
+                "SESSIONSPERUSER": {"type": "float", "description": "source_order=9"},
+                "EVENTCOUNT": {"type": "int", "description": "source_order=10"},
+                "EVENTCOUNTPERUSER": {"type": "float", "description": "source_order=11"},
+                "insert_timestamp": {"type": "timestamp_ntz", "description": null},
+                "hash_diff": {
+                    "type": "varchar(128)",
+                    "columns":["COUNTRY","CITY","DATE","BROWSER","LANGUAGE"],
+                    "algorithm":"MD5",
+                    "description": null
+                }
+            },
+            "dimensions": ["country",
+              "city",
+              "date",
+              "browser",
+              "language"],
+            "metrics":["newUsers",
+              "activeUsers",
+              "sessions",
+              "sessionsPerUser",
+              "eventCount",
+              "eventCountPerUser"],
+             "cluster_keys": {
+                "columns":["COUNTRY","CITY","DATE","BROWSER","LANGUAGE"],
+                "description": null
+            }
+        }
+    }
+}
