@@ -8,7 +8,6 @@ from airflow import DAG
 from airflow.models.baseoperator import chain
 from airflow.operators.dummy import DummyOperator
 from airflow.providers.snowflake.operators.snowflake import SnowflakeOperator
-from airflow.utils.trigger_rule import TriggerRule
 from airflow.utils.task_group import TaskGroup
 
 from include.libs.schema_reg.base_schema_transforms import snowflake_load_column_string
@@ -96,6 +95,28 @@ with DAG(
         table_metrics = table_def.get(f"{table}").get("metrics")
 
         col_string = snowflake_load_column_string(table_props)
+
+        with TaskGroup(group_id=f"{table}_create"):
+
+            create_start = DummyOperator(task_id=f"{table}_start")
+
+            create_tables = SnowflakeOperator(
+                task_id=f"create_{table}",
+                snowflake_conn_id=SNOWFLAKE_CONN_ID,
+                autocommit=True,
+                warehouse=TRANSFORM_WAREHOUSE,
+                database=TRANSFORM_DB,
+                role=TRANSFORM_ROLE,
+                schema=transform_schema,
+                params={
+                    "transform_schema": transform_schema,
+                    "transform_db": TRANSFORM_DB,
+                    "table": table,
+                    "table_schema": table_props,
+                },
+                sql=f"{TRANSFORM_DB_FILE_FOLDER_NAME}/create_tables.sql",
+                pool="snowflake_transforming",
+            )
 
         with TaskGroup(group_id=f"{table}_extract"):
 
@@ -193,6 +214,8 @@ with DAG(
                 )
                 chain(
                     start,
+                    create_start,
+                    create_tables,
                     extract_start,
                     extract_to_gcs,
                     extract_finish,
