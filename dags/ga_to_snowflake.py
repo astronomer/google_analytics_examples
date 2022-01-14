@@ -1,6 +1,5 @@
 import os
 import json
-import logging
 from pathlib import Path
 from datetime import datetime
 
@@ -22,14 +21,14 @@ template_searchpath = os.path.join(base_path, "include", "templates")
 
 # Update the variables below with your project info
 GCS_CONN_ID = "google_cloud_default"
-GCS_BUCKET = "demo"
+GCS_BUCKET = "gcs_bucket_name"
 SNOWFLAKE_CONN_ID = "snowflake_default"
-LOADING_DB = "loading_db"
-LOADING_ROLE = "loading_role"
-LOADING_WAREHOUSE = "loading_warehouse"
-TRANSFORM_DB = "transform_db"
-TRANSFORM_ROLE = "transform_role"
-TRANSFORM_WAREHOUSE = "transform_warehouse"
+LOADING_DB = "loading"
+LOADING_ROLE = "loader"
+LOADING_WAREHOUSE = "loading"
+TRANSFORM_DB = "transforming"
+TRANSFORM_ROLE = "transformer"
+TRANSFORM_WAREHOUSE = "transforming"
 
 # These are folders under include/templates/
 TRANSFORM_DB_FILE_FOLDER_NAME = "transform"
@@ -42,7 +41,7 @@ property_id = "123456789"
 
 with DAG(
     dag_id="google_analytics_to_snowflake",
-    schedule_interval="0 0 * * *",
+    schedule_interval=None,
     start_date=datetime(2022, 1, 1),
     max_active_runs=1,
     catchup=False,
@@ -61,13 +60,8 @@ with DAG(
         table_def = table_schema.get("definitions")
         tables = list(table_def.keys())
 
-    start = DummyOperator(
-        task_id="start",
-    )
-
-    finish = DummyOperator(
-        task_id="extract_finish",
-    )
+    start = DummyOperator(task_id="start")
+    finish = DummyOperator(task_id="extract_finish")
 
     for table in tables:
 
@@ -90,18 +84,22 @@ with DAG(
         end_ds = "{{ ds }}"
         table_props = table_def.get(f"{table}").get("properties")
 
-        logging.info(table_props)
         table_dimensions = table_def.get(f"{table}").get("dimensions")
         table_metrics = table_def.get(f"{table}").get("metrics")
 
         col_string = snowflake_load_column_string(table_props)
 
-        with TaskGroup(group_id=f"{table}_create"):
+        """
+        Create the Snowflake tables for GA data if they don't already exist
+        """
+        with TaskGroup(group_id=f"snowflake_{table}_create"):
 
-            create_start = DummyOperator(task_id=f"{table}_start")
+            create_start = DummyOperator(
+                task_id=f"snowflake_{table}_create_start"
+            )
 
             create_tables = SnowflakeOperator(
-                task_id=f"create_{table}",
+                task_id=f"snowflake_create_{table}",
                 snowflake_conn_id=SNOWFLAKE_CONN_ID,
                 autocommit=True,
                 warehouse=TRANSFORM_WAREHOUSE,
@@ -115,12 +113,18 @@ with DAG(
                     "table_schema": table_props,
                 },
                 sql=f"{TRANSFORM_DB_FILE_FOLDER_NAME}/create_tables.sql",
-                pool="snowflake_transforming",
             )
 
+            create_finish = DummyOperator(
+                task_id=f"snowflake_{table}_create_finish"
+            )
+
+        """
+        Extract GA data to GCS
+        """
         with TaskGroup(group_id=f"{table}_extract"):
 
-            extract_start = DummyOperator(task_id=f"{table}_start")
+            extract_start = DummyOperator(task_id=f"{table}_extract_start")
 
             extract_to_gcs = GAToGCSOperator(
                 task_id=f"upload_{table}_to_gcs",
@@ -136,6 +140,10 @@ with DAG(
             )
 
             extract_finish = DummyOperator(task_id=f"{table}_finish")
+
+            """
+            Load data from GCS to Snowflake and manage Snowflake environment
+            """
             with TaskGroup(group_id="loading_from_gcs_to_snowflake"):
                 loading_db_params = {
                     "loading_schema": loading_schema,
@@ -143,6 +151,7 @@ with DAG(
                     "table": table,
                     "table_schema": table_props,
                 }
+
                 prepare_staging = SnowflakeOperator(
                     task_id=f"create_staging_{table}",
                     snowflake_conn_id=SNOWFLAKE_CONN_ID,
@@ -153,8 +162,8 @@ with DAG(
                     schema=loading_schema,
                     params=loading_db_params,
                     sql=f"{LOADING_DB_FILE_FOLDER_NAME}/create_staging_tables.sql",
-                    pool="snowflake_loading",
                 )
+
                 load_staging = SnowflakeOperator(
                     task_id=f"load_{table}_to_snowflake",
                     snowflake_conn_id=SNOWFLAKE_CONN_ID,
@@ -172,7 +181,6 @@ with DAG(
                         "stage_name": "STAGE_GOOGLE_ANALYTICS",
                     },
                     sql=f"{LOADING_DB_FILE_FOLDER_NAME}/copy_into_staging_tables.sql",
-                    pool="snowflake_loading",
                 )
 
                 cluster_keys = (
@@ -197,7 +205,6 @@ with DAG(
                         "cluster_keys": cluster_keys,
                     },
                     sql=f"{TRANSFORM_DB_FILE_FOLDER_NAME}/upsert_tables.sql",
-                    pool="snowflake_transforming",
                 )
 
                 cleanup_staging = SnowflakeOperator(
@@ -210,12 +217,13 @@ with DAG(
                     schema=loading_schema,
                     params=loading_db_params,
                     sql=f"{LOADING_DB_FILE_FOLDER_NAME}/cleanup_staging_tables.sql",
-                    pool="snowflake_loading",
                 )
+
                 chain(
                     start,
                     create_start,
                     create_tables,
+                    create_finish,
                     extract_start,
                     extract_to_gcs,
                     extract_finish,
